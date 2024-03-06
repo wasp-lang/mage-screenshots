@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mage Screenshots</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        text-align: center;
+        font-size: 18px;
+      }
+      img {
+        max-width: 100%;
+      }
+      #message {
+        padding: 10px;
+        margin: 10px 0;
+        background-color: #f4f4f4;
+      }
+      form {
+        margin: 20px 0;
+      }
+      input {
+        padding: 10px;
+      }
+      button {
+        padding: 10px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Welcome to Mage Screenshots</h1>
+    <div id="message"></div>
+    <form>
+      <input type="text" placeholder="Mage Project URL" />
+      <button>Generate screenshots</button>
+    </form>
+
+    <div id="screenshots"></div>
+
+    <script type="module">
+      const serverUrl = "http://localhost:3001";
+      let statusUrl = "";
+      let intervalId = null;
+      const form = document.querySelector("form");
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const url = document.querySelector("input")?.value;
+
+        if (!url) {
+          setMessage("Please enter a valid URL");
+          return;
+        }
+
+        if (intervalId) {
+          clearInterval(intervalId);
+          setMessage("");
+          setScreenshots([]);
+        }
+
+        fetch(`${serverUrl}/generate?url=${url}`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            statusUrl = data.statusUrl;
+
+            setMessage("Screenshot started");
+
+            intervalId = setInterval(fetchStatus, 1000);
+          });
+      });
+
+      function setMessage(message) {
+        const messageDiv = document.querySelector("#message");
+        if (!messageDiv) {
+          return;
+        }
+        messageDiv.innerHTML = message;
+      }
+
+      function setScreenshots(screenshots) {
+        const screenshotsDiv = document.querySelector("#screenshots");
+        if (!screenshotsDiv) {
+          return;
+        }
+        screenshotsDiv.innerHTML = screenshots
+          .map((screenshot) => {
+            return `<div><img src="${serverUrl}${screenshot}" alt="screenshot" /></div>`;
+          })
+          .join("");
+      }
+
+      function fetchStatus() {
+        fetch(`${serverUrl}${statusUrl}`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            const state = data.state;
+            if (state === "done") {
+              clearInterval(intervalId);
+              setMessage("Screenshots are done");
+              const screenshots = data.paths;
+              setScreenshots(screenshots);
+            } else if (state === "error") {
+              clearInterval(intervalId);
+              setMessage("An error occurred");
+            } else {
+              setMessage("Screenshot is in progress");
+            }
+          });
+      }
+    </script>
+  </body>
+</html>
