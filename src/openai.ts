@@ -6,6 +6,9 @@ export const openai = new OpenAI({
   apiKey: process.env["OPENAI_API_KEY"],
 });
 
+// const model = "gpt-4-1106-preview";
+const model = "gpt-3.5-turbo";
+
 export async function getHtmlForFile(layoutFile: File, file: File) {
   const prompt = `
   - You are developer converting a few React components (${layoutFile.name} with another component inside) to pure HTML and mocking the HTML to look like the React component rendered with sensible mock data.
@@ -31,7 +34,7 @@ export async function getHtmlForFile(layoutFile: File, file: File) {
       },
       { role: "user", content: prompt },
     ],
-    model: "gpt-4-1106-preview",
+    model,
   });
   return chatCompletion.choices[0].message.content;
 }

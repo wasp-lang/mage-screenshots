@@ -110,22 +110,24 @@ export async function generateScreenshotsForApp(
 `;
   fs.writeFileSync(`${appDir}/${inputCssFile}`, mainCss);
 
-  for (let file of userFiles) {
-    console.log(`Generating HTML for ${file.name}...`);
-    const html = await getHtmlForFile(layoutFile, file);
+  await Promise.all(
+    userFiles.map(async (file) => {
+      console.log(`Generating HTML for ${file.name}...`);
+      const html = await getHtmlForFile(layoutFile, file);
 
-    if (!html) {
-      console.error(`No HTML generated for ${file.name}`);
-      continue;
-    }
+      if (!html) {
+        console.error(`No HTML generated for ${file.name}`);
+        return;
+      }
 
-    const baseFileName = file.name.split("/").pop()?.split(".").shift();
-    if (!baseFileName) {
-      console.error("Invalid file name");
-      process.exit(1);
-    }
-    fs.writeFileSync(`${appDir}/${baseFileName}.html`, html);
-  }
+      const baseFileName = file.name.split("/").pop()?.split(".").shift();
+      if (!baseFileName) {
+        console.error("Invalid file name");
+        process.exit(1);
+      }
+      fs.writeFileSync(`${appDir}/${baseFileName}.html`, html);
+    })
+  );
 
   console.log("Running npx tailwindcss...");
   execSync(`npx tailwindcss -i ${inputCssFile} -o ${outputCssFile}`, {

@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "cli": "node --import=tsimp/import ./src/cli.ts",
-    "server": "node --import=tsimp/import ./src/server.ts",
+    "cli": "node -r dotenv/config --import=tsimp/import ./src/cli.ts",
+    "server": "node -r dotenv/config --import=tsimp/import ./src/server.ts",
     "client": "npx serve ./client -p 3000"
   },
   "license": "MIT",
