@@ -14,6 +14,7 @@
         max-width: 100%;
       }
       #message {
+        display: inline-block;
         padding: 10px;
         margin: 10px 0;
         background-color: #f4f4f4;
@@ -31,11 +32,22 @@
         border: none;
         cursor: pointer;
       }
+      #screenshots {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        gap: 20px;
+      }
+      #screenshots div {
+        border: 1px solid #f4f4f4;
+        padding: 10px;
+      }
     </style>
   </head>
   <body>
     <h1>Welcome to Mage Screenshots</h1>
-    <div id="message"></div>
+    <div>
+      <div id="message" style="display: none"></div>
+    </div>
     <form>
       <input type="text" placeholder="Mage Project URL" />
       <button>Generate screenshots</button>
@@ -81,6 +93,11 @@
 
       function setMessage(message) {
         const messageDiv = document.querySelector("#message");
+        if (message) {
+          messageDiv.style.display = "";
+        } else {
+          messageDiv.style.display = "none";
+        }
         if (!messageDiv) {
           return;
         }
@@ -109,16 +126,24 @@
           .then((res) => res.json())
           .then((data) => {
             const state = data.state;
+            const screenshots = data.paths;
+            const totalNumberOfScreenshots = data.totalNumberOfScreenshots;
+            let numberOfScreenshots = 0;
+            if (screenshots && screenshots.length > 0) {
+              setScreenshots(screenshots);
+              numberOfScreenshots = screenshots.length;
+            }
             if (state === "done") {
               clearInterval(intervalId);
               setMessage("Screenshots are done");
-              const screenshots = data.paths;
-              setScreenshots(screenshots);
             } else if (state === "error") {
               clearInterval(intervalId);
               setMessage("An error occurred");
             } else {
-              setMessage("Screenshot is in progress");
+              const extraInfo = numberOfScreenshots
+                ? ` `
+                : "";
+              setMessage(`Screenshot is in progress (${numberOfScreenshots}/${totalNumberOfScreenshots})`);
             }
           });
       }

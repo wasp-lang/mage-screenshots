@@ -3,7 +3,7 @@ import FastifyStatic from "@fastify/static";
 import cors from "@fastify/cors";
 
 import * as zod from "zod";
-import { generateScreenshotsForApp } from "./generate.js";
+import { generateScreenshotsForApp, getProjectInfo } from "./generate.js";
 
 const fastify = Fastify({
   logger: true,
@@ -35,21 +35,25 @@ fastify.get("/generate", async (request, reply) => {
     return stateResponse;
   }
 
+  const projectInfo = await getProjectInfo(url);
   db.set(url, {
     state: "running",
     startedAt: Date.now(),
     url,
     paths: [],
+    totalNumberOfScreenshots: projectInfo.userFiles.length,
   });
 
   async function generate() {
-    const localPaths = await generateScreenshotsForApp(url);
-    const urls = localPaths.map((path) =>
-      path.replace(/^\.\/results/, "/results")
-    );
+    for await (const path of generateScreenshotsForApp(projectInfo)) {
+      const state = db.get(url)!;
+      const publicPath = path.replace(/^\.\/results/, "/results");
+      db.update(url, {
+        paths: [...state.paths, publicPath],
+      });
+    }
     db.update(url, {
       state: "done",
-      paths: urls,
       endedAt: Date.now(),
     });
   }
@@ -84,6 +88,7 @@ type State = {
   state: "running" | "done" | "error";
   url: string;
   paths: string[];
+  totalNumberOfScreenshots: number;
 };
 
 function createDatabase() {

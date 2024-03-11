@@ -13,16 +13,23 @@ export type File = {
 
 type Result = {
   json: {
-    project: {
-      primaryColor: string;
-      files: File[];
-    };
+    project: Project;
   };
 };
 
-export async function generateScreenshotsForApp(
-  rawUrl: string
-): Promise<string[]> {
+type Project = {
+  primaryColor: string;
+  files: File[];
+}
+
+type ProjectInfo = {
+  appId: string;
+  userFiles: File[];
+  layoutFile: File;
+  project: Project;
+};
+
+export async function getProjectInfo(rawUrl: string, limit?: number): Promise<ProjectInfo> {
   const url = new URL(rawUrl);
   const appId = url.pathname.split("/").pop();
   if (!appId) {
@@ -50,12 +57,16 @@ export async function generateScreenshotsForApp(
     file.name.endsWith(".jsx")
   );
 
-  const userFiles = jsxFilesWithContent.filter(
+  let userFiles = jsxFilesWithContent.filter(
     (file) =>
       !file.name.endsWith("Login.jsx") &&
       !file.name.endsWith("Signup.jsx") &&
       !file.name.endsWith("Layout.jsx")
   );
+
+  if (limit) {
+    userFiles = userFiles.slice(0, limit);
+  }
 
   const layoutFile = jsxFilesWithContent.find((file) =>
     file.name.endsWith("Layout.jsx")
@@ -66,6 +77,20 @@ export async function generateScreenshotsForApp(
     process.exit(1);
   }
 
+  return {
+    appId,
+    userFiles,
+    layoutFile,
+    project,
+  }
+}
+
+export async function* generateScreenshotsForApp({
+  appId,
+  userFiles,
+  layoutFile,
+  project,
+}: ProjectInfo) {
   if (!fs.existsSync(resultsDir)) {
     fs.mkdirSync(resultsDir);
   }
@@ -75,6 +100,20 @@ export async function generateScreenshotsForApp(
     fs.mkdirSync(appDir);
   }
 
+  setupCSS(project, appDir);
+
+  const screenshotPaths: string[] = [];
+  for (let file of userFiles) {
+    await generateAndWriteHtmlForFile(file, layoutFile, appDir);
+    runTailwindCss(appDir);
+    const screenshotPath = await getScreenshotPathForFile(file, appDir);
+    yield screenshotPath;
+    screenshotPaths.push(screenshotPath);
+  }
+  return screenshotPaths;
+}
+
+function setupCSS(project: Project, appDir: string) {
   const tailwindConfig = dedent`
   const colors = require('tailwindcss/colors')
 
@@ -109,45 +148,46 @@ export async function generateScreenshotsForApp(
   @tailwind utilities;
 `;
   fs.writeFileSync(`${appDir}/${inputCssFile}`, mainCss);
+}
 
-  await Promise.all(
-    userFiles.map(async (file) => {
-      console.log(`Generating HTML for ${file.name}...`);
-      const html = await getHtmlForFile(layoutFile, file);
+async function generateAndWriteHtmlForFile(
+  file: File,
+  layoutFile: File,
+  appDir: string
+) {
+  console.log(`Generating HTML for ${file.name}...`);
+  const html = await getHtmlForFile(layoutFile, file);
 
-      if (!html) {
-        console.error(`No HTML generated for ${file.name}`);
-        return;
-      }
+  if (!html) {
+    console.error(`No HTML generated for ${file.name}`);
+    return;
+  }
 
-      const baseFileName = file.name.split("/").pop()?.split(".").shift();
-      if (!baseFileName) {
-        console.error("Invalid file name");
-        process.exit(1);
-      }
-      fs.writeFileSync(`${appDir}/${baseFileName}.html`, html);
-    })
-  );
+  const baseFileName = file.name.split("/").pop()?.split(".").shift();
+  if (!baseFileName) {
+    console.error("Invalid file name");
+    process.exit(1);
+  }
+  fs.writeFileSync(`${appDir}/${baseFileName}.html`, html);
+}
 
+function runTailwindCss(appDir: string) {
   console.log("Running npx tailwindcss...");
   execSync(`npx tailwindcss -i ${inputCssFile} -o ${outputCssFile}`, {
     cwd: appDir,
   });
+}
 
-  const screenshotPaths: string[] = [];
-  for (let file of userFiles) {
-    const baseFileName = file.name.split("/").pop()?.split(".").shift();
-    if (!baseFileName) {
-      console.error("Invalid file name");
-      process.exit(1);
-    }
-    console.log(`Taking screenshot for ${baseFileName}.html...`);
-    const screenshotPath = await takeScreenshot(
-      `${appDir}/${baseFileName}.html`,
-      `${appDir}/${baseFileName}.png`
-    );
-    screenshotPaths.push(screenshotPath);
+async function getScreenshotPathForFile(file: File, appDir: string) {
+  const baseFileName = file.name.split("/").pop()?.split(".").shift();
+  if (!baseFileName) {
+    console.error("Invalid file name");
+    process.exit(1);
   }
-
-  return screenshotPaths;
+  console.log(`Taking screenshot for ${baseFileName}.html...`);
+  const screenshotPath = await takeScreenshot(
+    `${appDir}/${baseFileName}.html`,
+    `${appDir}/${baseFileName}.png`
+  );
+  return screenshotPath;
 }
